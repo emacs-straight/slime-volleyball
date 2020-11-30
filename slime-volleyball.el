@@ -273,6 +273,8 @@
 (defvar slime-volleyball-endvar nil "Ending scene variable.")
 (defvar slime-volleyball-music-player-process nil
   "Object representing process playing music.")
+(defvar slime-volleyball-experimental-slime nil
+  "Non-nil to make the slime being trained more experimental.")
 
 (cl-defstruct slime-volleyball-slime
   "A player in the game of slime volleyball"
@@ -373,39 +375,39 @@
   (let* ((max-val (max left right jump stop none))
          (max-list nil) (rand-max nil) (index 0))
     ;; Uncomment to make the learning slime more experimental.
-    ;; (if (eq (random 10) 3)
-    ;;     (elt '((0 slime-volleyball-slime-left)
-    ;;            (1 slime-volleyball-slime-right)
-    ;;            (2 slime-volleyball-slime-jump)
-    ;;            (3 slime-volleyball-slime-stop)
-    ;;            (4 slime-volleyball-slime-none))
-    ;;          (random 3))
-    (dolist (check (list left right jump stop none))
-      (when (< (abs (- check max-val)) 0.001)
-        (push (list index
-                    (elt (list 'slime-volleyball-slime-left
-                               'slime-volleyball-slime-right
-                               'slime-volleyball-slime-jump
-                               'slime-volleyball-slime-stop
-                               'slime-volleyball-slime-none)
-                         index)) max-list))
-      (setq index (1+ index)))
-    (when (> (length max-list) 1)
-      (setq rand-max (elt max-list (random (length max-list)))))
-    (cond
-     (rand-max rand-max)
-     ((< (abs (- left max-val)) 0.001)
-      '(0 slime-volleyball-slime-left))
-     ((< (abs (- right max-val)) 0.001)
-      '(1 slime-volleyball-slime-right))
-     ((< (abs (- jump max-val)) 0.001)
-      '(2 slime-volleyball-slime-jump))
-     ((< (abs (- stop max-val)) 0.001)
-      '(3 slime-volleyball-slime-stop))
-     ((< (abs (- none max-val)) 0.001)
-      '(4 slime-volleyball-slime-none)))
-    ;;)
-    ))
+    (if (and slime-volleyball-experimental-slime
+             (eq (random 10) 3))
+        (elt '((0 slime-volleyball-slime-left)
+               (1 slime-volleyball-slime-right)
+               (2 slime-volleyball-slime-jump)
+               (3 slime-volleyball-slime-stop)
+               (4 slime-volleyball-slime-none))
+             (random 3))
+      (progn
+        (dolist (check (list left right jump stop none))
+          (when (< (abs (- check max-val)) 0.001)
+            (push (list index
+                        (elt (list 'slime-volleyball-slime-left
+                                   'slime-volleyball-slime-right
+                                   'slime-volleyball-slime-jump
+                                   'slime-volleyball-slime-stop
+                                   'slime-volleyball-slime-none)
+                             index)) max-list))
+          (setq index (1+ index)))
+        (when (> (length max-list) 1)
+          (setq rand-max (elt max-list (random (length max-list)))))
+        (cond
+         (rand-max rand-max)
+         ((< (abs (- left max-val)) 0.001)
+          '(0 slime-volleyball-slime-left))
+         ((< (abs (- right max-val)) 0.001)
+          '(1 slime-volleyball-slime-right))
+         ((< (abs (- jump max-val)) 0.001)
+          '(2 slime-volleyball-slime-jump))
+         ((< (abs (- stop max-val)) 0.001)
+          '(3 slime-volleyball-slime-stop))
+         ((< (abs (- none max-val)) 0.001)
+          '(4 slime-volleyball-slime-none)))))))
 
 ;; The following is from computer slime's perspective.
 ;;
@@ -1687,8 +1689,7 @@
           (setq slime-volleyball-unpause-function
                 'slime-volleyball-play-ending)
         (setq slime-volleyball-unpause-function
-              'slime-volleyball-say-game-over)
-        ))))
+              'slime-volleyball-say-game-over)))))
 
 (defun slime-volleyball-debug-dump ()
   "Print a debugging message."
@@ -1864,28 +1865,15 @@
 
 (defun slime-volleyball-play-music (name repeat)
   "Play sound clip NAME, repeating indefinitely if REPEAT is non-nil."
-  ;; Ignore errors in case EMMS doesn't have ogg support.
-  (ignore-errors
-    (when slime-volleyball-enable-sound
-      (let ((temp-file (make-temp-file name nil ".ogg"))
-            ;; This is not recommended.
-            (large-file-warning-threshold 1000000000)
-            (undo-outer-limit 60000000))
-        (find-file
-         (expand-file-name (concat name ".b64") slime-volleyball-base))
-        (save-excursion
-          (with-current-buffer (concat name ".b64")
-            (base64-decode-region (point-min) (point-max))
-            (let ((coding-system-for-write 'no-conversion))
-              (write-file temp-file))
-            ;; Clear mini-buffer.
-            (message nil)
-            (kill-buffer)))
-        (setq slime-volleyball-music-player-process
-              (ignore-errors
-                (start-process
-                 "slime-volleyball-music"
-                 nil "ogg123" (if repeat "-r" "") temp-file)))))))
+  (when slime-volleyball-enable-sound
+    (setq slime-volleyball-music-player-process
+          (ignore-errors
+            (start-process
+             (concat "slime-volleyball-" name "-music")
+             nil "ogg123" (if repeat "-r" "")
+             (expand-file-name
+              (concat "slime-volleyball-" name ".ogg")
+              slime-volleyball-base))))))
 
 (defun slime-volleyball-introduce-opponent ()
   "Display a message introducing a computer-controlled opponent slime."
@@ -1925,8 +1913,7 @@
   (sit-for 0.1)
   (slime-volleyball-play-music "start" nil)
   (sleep-for 4)
-  (when slime-volleyball-enable-sound
-    (kill-process slime-volleyball-music-player-process))
+  (ignore-errors (kill-process slime-volleyball-music-player-process))
   (setq slime-volleyball-starting nil)
   (setq slime-volleyball-unpause-function
         #'slime-volleyball-introduce-opponent)
@@ -1940,8 +1927,7 @@ NO-KILL is specified, do not kill the *slime-volleyball* buffer."
   (when (or force-quit
             (y-or-n-p "Quit Slime Volleyball? "))
     (setq slime-volleyball-quitting t)
-    (when slime-volleyball-enable-sound
-      (kill-process slime-volleyball-music-player-process))
+    (ignore-errors (kill-process slime-volleyball-music-player-process))
     (slime-volleyball-scrub-timer-list 'slime-volleyball-render)
     (slime-volleyball-scrub-timer-list
      'slime-volleyball-eval-god-mode-variables)
