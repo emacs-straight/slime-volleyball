@@ -3,7 +3,7 @@
 ;; Copyright (C) 2013-2020  Free Software Foundation, Inc.
 
 ;; Author: Thomas Fitzsimmons <fitzsim@fitzsim.org>
-;; Version: 1.1.7
+;; Version: 1.2.0
 ;; Keywords: games
 ;; Package-Requires: ((cl-lib "0.5"))
 ;; Package-Type: multi
@@ -1258,7 +1258,8 @@
   (if slime-volleyball-play-ending
       (slime-volleyball-set-ending-scene)
     (slime-volleyball-set-scene))
-  (slime-volleyball-draw-scene))
+  (slime-volleyball-draw-scene)
+  (clear-image-cache))
 
 (define-minor-mode slime-volleyball-frame-by-frame-mode
   "Stop the real-time behavior and only advance a step at a time upon request.")
